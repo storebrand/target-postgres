@@ -266,7 +266,9 @@ class PostgresConnector(SQLConnector):
         if "object" in jsonschema_type["type"]:
             return JSONB()
         if "array" in jsonschema_type["type"]:
-            return ARRAY(JSONB())
+            return "vector" #ARRAY(JSONB())
+        if "vector" in jsonschema_type["type"]:
+            return "vector"
         if jsonschema_type.get("format") == "date-time":
             return TIMESTAMP()
         individual_type = th.to_sql_type(jsonschema_type)
