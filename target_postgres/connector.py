@@ -501,7 +501,8 @@ class PostgresConnector(SQLConnector):
         # calling merge_sql_types for assistnace
         compatible_sql_type = self.merge_sql_types([current_type, sql_type])
 
-        if str(compatible_sql_type) == str(current_type):
+        self.logger.info(f"Considering a change of column {column_name} with type {str(sql_type)}")
+        if  (str(compatible_sql_type) == str(current_type)) or str(sql_type) == 'NULL':
             # Nothing to do
             return
 
