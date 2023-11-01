@@ -300,6 +300,7 @@ class PostgresConnector(SQLConnector):
             INTEGER,
             BOOLEAN,
             NOTYPE,
+            Vector
         ]
 
         for sql_type in precedence_order:
