@@ -492,7 +492,7 @@ class PostgresConnector(SQLConnector):
         current_type_collation = self.remove_collation(current_type)
 
         # Check if the existing column type and the sql type are the same
-        if (str(sql_type) == str(current_type)) or str(sql_type) == 'NULL':
+        if (str(sql_type) == str(current_type)) or str(sql_type).startswith('VECTOR'):
             # The current column and sql type are the same
             # Nothing to do
             return
@@ -502,7 +502,6 @@ class PostgresConnector(SQLConnector):
         self.logger.info(f"Considering a change of column {column_name} with type {str(sql_type)}")
         compatible_sql_type = self.merge_sql_types([current_type, sql_type])
 
-        self.logger.info(f"Considering a change of column {column_name} with type {str(sql_type)}")
 
         if  (str(compatible_sql_type) == str(current_type)) or str(sql_type) == 'NULL':
             # Nothing to do
