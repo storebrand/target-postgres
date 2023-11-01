@@ -752,7 +752,7 @@ class PostgresConnector(SQLConnector):
         return {
             col_meta["name"]: sqlalchemy.Column(
                 col_meta["name"],
-                col_meta["type"] if str(col_meta["type"] )!= "NULL" else Vector(1536),
+                (col_meta["type"] if str(col_meta["type"])!="NULL" else Vector(1536)),
                 nullable=col_meta.get("nullable", False),
             )
             for col_meta in columns
