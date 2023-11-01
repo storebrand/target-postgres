@@ -492,7 +492,7 @@ class PostgresConnector(SQLConnector):
         current_type_collation = self.remove_collation(current_type)
 
         # Check if the existing column type and the sql type are the same
-        if str(sql_type) == str(current_type):
+        if (str(sql_type) == str(current_type)) or str(sql_type) == 'NULL':
             # The current column and sql type are the same
             # Nothing to do
             return
