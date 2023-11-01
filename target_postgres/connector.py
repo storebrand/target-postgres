@@ -8,6 +8,7 @@ import typing as t
 from contextlib import contextmanager
 from os import chmod, path
 from typing import cast
+from pgvector.sqlalchemy import Vector
 
 import paramiko
 import simplejson
@@ -266,9 +267,9 @@ class PostgresConnector(SQLConnector):
         if "object" in jsonschema_type["type"]:
             return JSONB()
         if "array" in jsonschema_type["type"]:
-            return "vector" #ARRAY(JSONB())
+            return ARRAY(JSONB())
         if "vector" in jsonschema_type["type"]:
-            return "vector"
+            return Vector(1536)
         if jsonschema_type.get("format") == "date-time":
             return TIMESTAMP()
         individual_type = th.to_sql_type(jsonschema_type)
