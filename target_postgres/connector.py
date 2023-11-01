@@ -293,12 +293,6 @@ class PostgresConnector(SQLConnector):
             return TEXT()
         return individual_type
 
-    @staticmethod
-    def _convert_sql_type(sql_type):
-        if isinstance(sql_type, Vector):
-            return Vector
-        else:
-            return sql_type
 
     @staticmethod
     def pick_best_sql_type(sql_type_array: list):
@@ -775,13 +769,20 @@ class PostgresConnector(SQLConnector):
         return {
             col_meta["name"]: sqlalchemy.Column(
                 col_meta["name"],
-                self._convert_type(col_meta["type"]),
+                self._convert_sql_type(col_meta["type"]),
                 nullable=col_meta.get("nullable", False),
             )
             for col_meta in columns
             if not column_names
             or col_meta["name"].casefold() in {col.casefold() for col in column_names}
         }
+
+    @staticmethod
+    def _convert_sql_type(sql_type):
+        if isinstance(sql_type, Vector):
+            return Vector
+        else:
+            return sql_type
 
 
     def column_exists(  # type: ignore[override]
