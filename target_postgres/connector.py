@@ -33,6 +33,22 @@ from sqlalchemy.types import (
 from sshtunnel import SSHTunnelForwarder
 
 
+class TypeMap:
+    def __init__(self, operator, map_value, match_value=None):
+        self.operator = operator
+        self.map_value = map_value
+        self.match_value = match_value
+
+    def match(self, compare_value):
+        try:
+            if self.match_value:
+                return self.operator(compare_value, self.match_value)
+            return self.operator(compare_value)
+        except TypeError:
+            return False
+
+
+
 class PostgresConnector(SQLConnector):
     """Sets up SQL Alchemy, and other Postgres related stuff."""
 
@@ -276,6 +292,13 @@ class PostgresConnector(SQLConnector):
         if isinstance(individual_type, VARCHAR):
             return TEXT()
         return individual_type
+
+    @staticmethod
+    def _convert_sql_type(sql_type):
+        if isinstance(sql_type, Vector):
+            return Vector
+        else:
+            return sql_type
 
     @staticmethod
     def pick_best_sql_type(sql_type_array: list):
@@ -752,13 +775,14 @@ class PostgresConnector(SQLConnector):
         return {
             col_meta["name"]: sqlalchemy.Column(
                 col_meta["name"],
-                (col_meta["type"] if str(col_meta["type"])!="NULL" else Vector(1536)),
+                self._convert_type(col_meta["type"]),
                 nullable=col_meta.get("nullable", False),
             )
             for col_meta in columns
             if not column_names
             or col_meta["name"].casefold() in {col.casefold() for col in column_names}
         }
+
 
     def column_exists(  # type: ignore[override]
         self,
