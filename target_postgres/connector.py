@@ -171,7 +171,17 @@ class PostgresConnector(SQLConnector):
         if self.table_exists(full_table_name=full_table_name):
             raise RuntimeError("Table already exists")
         for column in from_table.columns:
-            columns.append(column._copy())
+            if str(column.type) == 'NULL':
+                self.logger.info(f"OK We're overriding a NULL type for column {column.name}")
+                columns.append(
+                    sqlalchemy.Column(
+                        column.name,
+                        Vector(1536),
+                        nullable=True,
+                    )
+                )
+            else:
+                columns.append(column._copy())
         if as_temp_table:
             new_table = sqlalchemy.Table(
                 table_name, meta, *columns, prefixes=["TEMPORARY"]
