@@ -419,13 +419,13 @@ class PostgresConnector(SQLConnector):
             )
             return
 
-        # self._adapt_column_type(
-        #     schema_name=schema_name,
-        #     table_name=table.name,
-        #     column_name=column_name,
-        #     sql_type=sql_type,
-        #     connection=connection,
-        # )
+        self._adapt_column_type(
+            schema_name=schema_name,
+            table_name=table.name,
+            column_name=column_name,
+            sql_type=sql_type,
+            connection=connection,
+        )
 
     def _create_empty_column(  # type: ignore[override]
         self,

@@ -142,3 +142,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# dev config
+config.json
+message.singer
