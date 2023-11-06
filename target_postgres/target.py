@@ -301,7 +301,7 @@ class TargetPostgres(SQLTarget):
                     description=(
                         "Private Key Password, leave None if no password is set"
                     ),
-                ),
+                )
             ),
             required=False,
             description="SSH Tunnel Configuration, this is a json object",
