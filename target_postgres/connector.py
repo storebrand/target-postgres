@@ -8,6 +8,7 @@ import typing as t
 from contextlib import contextmanager
 from os import chmod, path
 from typing import cast
+from pgvector.sqlalchemy import Vector
 
 import paramiko
 import simplejson
@@ -30,6 +31,22 @@ from sqlalchemy.types import (
     TypeDecorator,
 )
 from sshtunnel import SSHTunnelForwarder
+
+
+class TypeMap:
+    def __init__(self, operator, map_value, match_value=None):
+        self.operator = operator
+        self.map_value = map_value
+        self.match_value = match_value
+
+    def match(self, compare_value):
+        try:
+            if self.match_value:
+                return self.operator(compare_value, self.match_value)
+            return self.operator(compare_value)
+        except TypeError:
+            return False
+
 
 
 class PostgresConnector(SQLConnector):
@@ -165,7 +182,17 @@ class PostgresConnector(SQLConnector):
         if self.table_exists(full_table_name=full_table_name):
             raise RuntimeError("Table already exists")
         for column in from_table.columns:
-            columns.append(column._copy())
+            if str(column.type) == 'NULL':
+                self.logger.info(f"OK We're overriding a NULL type for column {column.name}")
+                columns.append(
+                    sqlalchemy.Column(
+                        column.name,
+                        Vector(1536),
+                        nullable=True,
+                    )
+                )
+            else:
+                columns.append(column._copy())
         if as_temp_table:
             new_table = sqlalchemy.Table(
                 table_name, meta, *columns, prefixes=["TEMPORARY"]
@@ -277,13 +304,16 @@ class PostgresConnector(SQLConnector):
         if "object" in jsonschema_type["type"]:
             return JSONB()
         if "array" in jsonschema_type["type"]:
-            return ARRAY(JSONB())
+            return Vector(1536) #ARRAY(JSONB())
+        if "vector" in jsonschema_type["type"]:
+            return Vector(1536)
         if jsonschema_type.get("format") == "date-time":
             return TIMESTAMP()
         individual_type = th.to_sql_type(jsonschema_type)
         if isinstance(individual_type, VARCHAR):
             return TEXT()
         return individual_type
+
 
     @staticmethod
     def pick_best_sql_type(sql_type_array: list):
@@ -308,6 +338,7 @@ class PostgresConnector(SQLConnector):
             INTEGER,
             BOOLEAN,
             NOTYPE,
+            Vector
         ]
 
         for sql_type in precedence_order:
@@ -510,16 +541,18 @@ class PostgresConnector(SQLConnector):
         current_type_collation = self.remove_collation(current_type)
 
         # Check if the existing column type and the sql type are the same
-        if str(sql_type) == str(current_type):
+        if (str(sql_type) == str(current_type)) or str(sql_type).startswith('VECTOR'):
             # The current column and sql type are the same
             # Nothing to do
             return
 
         # Not the same type, generic type or compatible types
         # calling merge_sql_types for assistnace
+        self.logger.info(f"Considering a change of column {column_name} with type {str(sql_type)}")
         compatible_sql_type = self.merge_sql_types([current_type, sql_type])
 
-        if str(compatible_sql_type) == str(current_type):
+
+        if  (str(compatible_sql_type) == str(current_type)) or str(sql_type) == 'NULL':
             # Nothing to do
             return
 
@@ -768,13 +801,21 @@ class PostgresConnector(SQLConnector):
         return {
             col_meta["name"]: sqlalchemy.Column(
                 col_meta["name"],
-                col_meta["type"],
+                self._convert_sql_type(col_meta["type"]),
                 nullable=col_meta.get("nullable", False),
             )
             for col_meta in columns
             if not column_names
             or col_meta["name"].casefold() in {col.casefold() for col in column_names}
         }
+
+    @staticmethod
+    def _convert_sql_type(sql_type):
+        if isinstance(sql_type, Vector):
+            return Vector
+        else:
+            return sql_type
+
 
     def column_exists(  # type: ignore[override]
         self,
