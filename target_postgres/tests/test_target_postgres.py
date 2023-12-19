@@ -1,16 +1,16 @@
-""" Attempt at making some standard Target Tests. """
+""" Postgres target tests """
 # flake8: noqa
 import copy
 import io
-import uuid
 from contextlib import redirect_stdout
+from decimal import Decimal
 from pathlib import Path
 
 import jsonschema
 import pytest
 import sqlalchemy
 from singer_sdk.exceptions import MissingKeyPropertiesError
-from singer_sdk.testing import sync_end_to_end
+from singer_sdk.testing import get_target_test_class, sync_end_to_end
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.types import TEXT, TIMESTAMP
 
@@ -21,66 +21,33 @@ from target_postgres.tests.samples.sample_tap_countries.countries_tap import (
     SampleTapCountries,
 )
 
-
-@pytest.fixture(scope="session")
-def postgres_config():
-    return {
-        "dialect+driver": "postgresql+psycopg2",
-        "host": "localhost",
-        "user": "postgres",
-        "password": "postgres",
-        "database": "postgres",
-        "port": 5432,
-        "ssl_enable": True,
-        "ssl_client_certificate_enable": True,
-        "ssl_mode": "verify-full",
-        "ssl_certificate_authority": "./ssl/root.crt",
-        "ssl_client_certificate": "./ssl/cert.crt",
-        "ssl_client_private_key": "./ssl/pkey.key",
-        "add_record_metadata": True,
-        "hard_delete": False,
-        "default_target_schema": "melty",
-    }
+from .core import (
+    create_engine,
+    postgres_config,
+    postgres_config_no_ssl,
+    postgres_config_ssh_tunnel,
+)
 
 
-@pytest.fixture(scope="session")
-def postgres_config_no_ssl():
-    return {
-        "dialect+driver": "postgresql+psycopg2",
-        "host": "localhost",
-        "user": "postgres",
-        "password": "postgres",
-        "database": "postgres",
-        "port": 5433,
-        "add_record_metadata": True,
-        "hard_delete": False,
-        "default_target_schema": "melty",
-    }
+# The below syntax is documented at https://docs.pytest.org/en/stable/deprecations.html#calling-fixtures-directly
+@pytest.fixture(scope="session", name="postgres_config")
+def postgres_config_fixture():
+    return postgres_config()
 
 
-@pytest.fixture(scope="session")
-def postgres_config_ssh_tunnel():
-    return {
-        "sqlalchemy_url": "postgresql://postgres:postgres@10.5.0.5:5432/main",
-        "ssh_tunnel": {
-            "enable": True,
-            "host": "127.0.0.1",
-            "port": 2223,
-            "username": "melty",
-            "private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\n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\n-----END OPENSSH PRIVATE KEY-----",  # noqa: E501
-        },
-    }
+@pytest.fixture(scope="session", name="postgres_config_no_ssl")
+def postgres_config_no_ssl_fixture():
+    return postgres_config_no_ssl()
+
+
+@pytest.fixture(scope="session", name="postgres_config_ssh_tunnel")
+def postgres_config_ssh_tunnel_fixture():
+    return postgres_config_ssh_tunnel()
 
 
 @pytest.fixture
 def postgres_target(postgres_config) -> TargetPostgres:
     return TargetPostgres(config=postgres_config)
-
-
-def create_engine(target_postgres: TargetPostgres) -> sqlalchemy.engine.Engine:
-    return TargetPostgres.default_sink_class.connector_class(
-        config=target_postgres.config
-    )._engine
 
 
 def singer_file_to_target(file_name, target) -> None:
@@ -114,6 +81,57 @@ def remove_metadata_columns(row: dict) -> dict:
         if not column.startswith("_sdc"):
             new_row[column] = row[column]
     return new_row
+
+
+def verify_data(
+    target: TargetPostgres,
+    table_name: str,
+    number_of_rows: int = 1,
+    primary_key: str | None = None,
+    check_data: dict | list[dict] | None = None,
+):
+    """Checks whether the data in a table matches a provided data sample.
+
+    Args:
+        target: The target to obtain a database connection from.
+        full_table_name: The schema and table name of the table to check data for.
+        primary_key: The primary key of the table.
+        number_of_rows: The expected number of rows that should be in the table.
+        check_data: A dictionary representing the full contents of the first row in the
+            table, as determined by lowest primary_key value, or else a list of
+            dictionaries representing every row in the table.
+    """
+    engine = create_engine(target)
+    full_table_name = f"{target.config['default_target_schema']}.{table_name}"
+    with engine.connect() as connection:
+        if primary_key is not None and check_data is not None:
+            if isinstance(check_data, dict):
+                result = connection.execute(
+                    sqlalchemy.text(
+                        f"SELECT * FROM {full_table_name} ORDER BY {primary_key}"
+                    )
+                )
+                assert result.rowcount == number_of_rows
+                result_dict = remove_metadata_columns(result.first()._asdict())
+                assert result_dict == check_data
+            elif isinstance(check_data, list):
+                result = connection.execute(
+                    sqlalchemy.text(
+                        f"SELECT * FROM {full_table_name} ORDER BY {primary_key}"
+                    )
+                )
+                assert result.rowcount == number_of_rows
+                result_dict = [
+                    remove_metadata_columns(row._asdict()) for row in result.all()
+                ]
+                assert result_dict == check_data
+            else:
+                raise ValueError("Invalid check_data - not dict or list of dicts")
+        else:
+            result = connection.execute(
+                sqlalchemy.text(f"SELECT COUNT(*) FROM {full_table_name}")
+            )
+            assert result.first()[0] == number_of_rows
 
 
 def test_sqlalchemy_url_config(postgres_config_no_ssl):
@@ -230,10 +248,11 @@ def test_special_chars_in_attributes(postgres_target):
     singer_file_to_target(file_name, postgres_target)
 
 
-# TODO test that data is correctly set
 def test_optional_attributes(postgres_target):
     file_name = "optional_attributes.singer"
     singer_file_to_target(file_name, postgres_target)
+    row = {"id": 1, "optional": "This is optional"}
+    verify_data(postgres_target, "test_optional_attributes", 4, "id", row)
 
 
 def test_schema_no_properties(postgres_target):
@@ -256,97 +275,101 @@ def test_large_numeric_primary_key(postgres_target):
 def test_schema_updates(postgres_target):
     file_name = "schema_updates.singer"
     singer_file_to_target(file_name, postgres_target)
+    row = {
+        "id": 1,
+        "a1": Decimal("101"),
+        "a2": "string1",
+        "a3": None,
+        "a4": None,
+        "a5": None,
+        "a6": None,
+    }
+    verify_data(postgres_target, "test_schema_updates", 6, "id", row)
 
 
-# TODO test that data is correct
 def test_multiple_state_messages(postgres_target):
     file_name = "multiple_state_messages.singer"
     singer_file_to_target(file_name, postgres_target)
+    row = {"id": 1, "metric": 100}
+    verify_data(postgres_target, "test_multiple_state_messages_a", 6, "id", row)
+    row = {"id": 1, "metric": 110}
+    verify_data(postgres_target, "test_multiple_state_messages_b", 6, "id", row)
+
+
+# TODO test that data is correct
+def test_multiple_schema_messages(postgres_target, caplog):
+    """Test multiple identical schema messages.
+
+    Multiple schema messages with the same schema should not cause 'schema has changed'
+    logging statements. See: https://github.com/MeltanoLabs/target-postgres/issues/124
+
+    Caplog docs: https://docs.pytest.org/en/latest/how-to/logging.html#caplog-fixture
+    """
+    file_name = "multiple_schema_messages.singer"
+    singer_file_to_target(file_name, postgres_target)
+    assert "Schema has changed for stream" not in caplog.text
 
 
 def test_relational_data(postgres_target):
-    engine = create_engine(postgres_target)
     file_name = "user_location_data.singer"
     singer_file_to_target(file_name, postgres_target)
 
     file_name = "user_location_upsert_data.singer"
     singer_file_to_target(file_name, postgres_target)
 
-    schema_name = postgres_target.config["default_target_schema"]
+    users = [
+        {"id": 1, "name": "Johny"},
+        {"id": 2, "name": "George"},
+        {"id": 3, "name": "Jacob"},
+        {"id": 4, "name": "Josh"},
+        {"id": 5, "name": "Jim"},
+        {"id": 8, "name": "Thomas"},
+        {"id": 12, "name": "Paul"},
+        {"id": 13, "name": "Mary"},
+    ]
+    locations = [
+        {"id": 1, "name": "Philly"},
+        {"id": 2, "name": "NY"},
+        {"id": 3, "name": "San Francisco"},
+        {"id": 6, "name": "Colorado"},
+        {"id": 8, "name": "Boston"},
+    ]
+    user_in_location = [
+        {
+            "id": 1,
+            "user_id": 1,
+            "location_id": 4,
+            "info": {"weather": "rainy", "mood": "sad"},
+        },
+        {
+            "id": 2,
+            "user_id": 2,
+            "location_id": 3,
+            "info": {"weather": "sunny", "mood": "satisfied"},
+        },
+        {
+            "id": 3,
+            "user_id": 1,
+            "location_id": 3,
+            "info": {"weather": "sunny", "mood": "happy"},
+        },
+        {
+            "id": 6,
+            "user_id": 3,
+            "location_id": 2,
+            "info": {"weather": "sunny", "mood": "happy"},
+        },
+        {
+            "id": 14,
+            "user_id": 4,
+            "location_id": 1,
+            "info": {"weather": "cloudy", "mood": "ok"},
+        },
+    ]
 
-    with engine.connect() as connection:
-        expected_test_users = [
-            {"id": 1, "name": "Johny"},
-            {"id": 2, "name": "George"},
-            {"id": 3, "name": "Jacob"},
-            {"id": 4, "name": "Josh"},
-            {"id": 5, "name": "Jim"},
-            {"id": 8, "name": "Thomas"},
-            {"id": 12, "name": "Paul"},
-            {"id": 13, "name": "Mary"},
-        ]
-
-        full_table_name = f"{schema_name}.test_users"
-        result = connection.execute(
-            sqlalchemy.text(f"SELECT * FROM {full_table_name} ORDER BY id")
-        )
-        result_dict = [remove_metadata_columns(row._asdict()) for row in result.all()]
-        assert result_dict == expected_test_users
-
-        expected_test_locations = [
-            {"id": 1, "name": "Philly"},
-            {"id": 2, "name": "NY"},
-            {"id": 3, "name": "San Francisco"},
-            {"id": 6, "name": "Colorado"},
-            {"id": 8, "name": "Boston"},
-        ]
-
-        full_table_name = f"{schema_name}.test_locations"
-        result = connection.execute(
-            sqlalchemy.text(f"SELECT * FROM {full_table_name} ORDER BY id")
-        )
-        result_dict = [remove_metadata_columns(row._asdict()) for row in result.all()]
-        assert result_dict == expected_test_locations
-
-        expected_test_user_in_location = [
-            {
-                "id": 1,
-                "user_id": 1,
-                "location_id": 4,
-                "info": {"weather": "rainy", "mood": "sad"},
-            },
-            {
-                "id": 2,
-                "user_id": 2,
-                "location_id": 3,
-                "info": {"weather": "sunny", "mood": "satisfied"},
-            },
-            {
-                "id": 3,
-                "user_id": 1,
-                "location_id": 3,
-                "info": {"weather": "sunny", "mood": "happy"},
-            },
-            {
-                "id": 6,
-                "user_id": 3,
-                "location_id": 2,
-                "info": {"weather": "sunny", "mood": "happy"},
-            },
-            {
-                "id": 14,
-                "user_id": 4,
-                "location_id": 1,
-                "info": {"weather": "cloudy", "mood": "ok"},
-            },
-        ]
-
-        full_table_name = f"{schema_name}.test_user_in_location"
-        result = connection.execute(
-            sqlalchemy.text(f"SELECT * FROM {full_table_name} ORDER BY id")
-        )
-        result_dict = [remove_metadata_columns(row._asdict()) for row in result.all()]
-        assert result_dict == expected_test_user_in_location
+    verify_data(postgres_target, "test_users", 8, "id", users)
+    verify_data(postgres_target, "test_locations", 5, "id", locations)
+    verify_data(postgres_target, "test_user_in_location", 5, "id", user_in_location)
 
 
 def test_no_primary_keys(postgres_target):
@@ -355,9 +378,7 @@ def test_no_primary_keys(postgres_target):
     table_name = "test_no_pk"
     full_table_name = postgres_target.config["default_target_schema"] + "." + table_name
     with engine.connect() as connection, connection.begin():
-        result = connection.execute(
-            sqlalchemy.text(f"DROP TABLE IF EXISTS {full_table_name}")
-        )
+        connection.execute(sqlalchemy.text(f"DROP TABLE IF EXISTS {full_table_name}"))
     file_name = f"{table_name}.singer"
     singer_file_to_target(file_name, postgres_target)
 
@@ -370,10 +391,7 @@ def test_no_primary_keys(postgres_target):
     file_name = f"{table_name}_append.singer"
     singer_file_to_target(file_name, postgres_target)
 
-    # Will populate us with 22 records, we run this twice
-    with engine.connect() as connection:
-        result = connection.execute(sqlalchemy.text(f"SELECT * FROM {full_table_name}"))
-        assert result.rowcount == 16
+    verify_data(postgres_target, table_name, 16)
 
 
 def test_no_type(postgres_target):
@@ -381,19 +399,20 @@ def test_no_type(postgres_target):
     singer_file_to_target(file_name, postgres_target)
 
 
-# TODO test that data is correct
 def test_duplicate_records(postgres_target):
     file_name = "duplicate_records.singer"
     singer_file_to_target(file_name, postgres_target)
+    row = {"id": 1, "metric": 100}
+    verify_data(postgres_target, "test_duplicate_records", 2, "id", row)
 
 
-# TODO test that data is correct
 def test_array_data(postgres_target):
     file_name = "array_data.singer"
     singer_file_to_target(file_name, postgres_target)
+    row = {"id": 1, "fruits": ["apple", "orange", "pear"]}
+    verify_data(postgres_target, "test_carts", 4, "id", row)
 
 
-# TODO test that data is correct
 def test_encoded_string_data(postgres_target):
     """
     We removed NUL characters from the original encoded_strings.singer as postgres doesn't allow them.
@@ -406,6 +425,12 @@ def test_encoded_string_data(postgres_target):
 
     file_name = "encoded_strings.singer"
     singer_file_to_target(file_name, postgres_target)
+    row = {"id": 1, "info": "simple string 2837"}
+    verify_data(postgres_target, "test_strings", 11, "id", row)
+    row = {"id": 1, "info": {"name": "simple", "value": "simple string 2837"}}
+    verify_data(postgres_target, "test_strings_in_objects", 11, "id", row)
+    row = {"id": 1, "strings": ["simple string", "απλή συμβολοσειρά", "简单的字串"]}
+    verify_data(postgres_target, "test_strings_in_arrays", 6, "id", row)
 
 
 def test_tap_appl(postgres_target):

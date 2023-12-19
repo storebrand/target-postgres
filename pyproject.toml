@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 packages = [
@@ -30,7 +31,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "<3.12,>=3.8.1"
+python = "<3.13,>=3.8.1"
 requests = "^2.25.1"
 singer-sdk = ">=0.28,<0.34"
 psycopg2-binary = "2.9.9"
