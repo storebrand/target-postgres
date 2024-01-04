@@ -1,11 +1,6 @@
 # `target-postgres`
 
-![PyPI - Version](https://img.shields.io/pypi/v/meltanolabs-target-postgres)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/meltanolabs-target-postgres)
-![PyPI - License](https://img.shields.io/pypi/l/meltanolabs-target-postgres)
-![Test target-postgres](https://github.com/meltanolabs/target-postgres/actions/workflows/ci_workflow.yml/badge.svg)
-
-Target for Postgres.
+This is a slight modification of the [Meltano target-postgres](https://gitlab.com/meltanolabs/target-postgres) for use with the PGVector extension to Postgres, intended for RAG/LLM applications and writing embeddings to the database. It is not intended for general use, although the only change is to the target datatype for writing arrays to postgres - it is now `pgvector` instead of `jsonb`. This will likely cause arrays of something other than numbers to cause errors.
 
 Built with the [Meltano SDK](https://sdk.meltano.com) for Singer Taps and Targets.
 
