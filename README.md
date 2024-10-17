@@ -1,3 +1,6 @@
+# ⚠️ This repository is no longer being maintained
+Storebrand have moved on from Meltano, and we're therefore no longer maintaining this repository. 
+
 # `target-postgres`
 
 This is a slight modification of the [Meltano target-postgres](https://gitlab.com/meltanolabs/target-postgres) for use with the PGVector extension to Postgres, intended for RAG/LLM applications and writing embeddings to the database. It is not intended for general use, although the only change is to the target datatype for writing arrays to postgres - it is now `pgvector` instead of `jsonb`. This will likely cause arrays of something other than numbers to cause errors.
